@@ -24,6 +24,7 @@
   <depend>clearpath_platform_msgs</depend>
   <depend>hardware_interface</depend>
   <depend>geometry_msgs</depend>
+  <depend>sysnergie_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>pluginlib</depend>
   <depend>puma_motor_msgs</depend>

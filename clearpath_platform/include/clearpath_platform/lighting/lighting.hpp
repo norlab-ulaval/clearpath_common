@@ -43,6 +43,7 @@
 #include "clearpath_platform_msgs/msg/status.hpp"
 #include "clearpath_platform_msgs/msg/power.hpp"
 #include "clearpath_platform_msgs/msg/stop_status.hpp"
+#include "sysnergie_msgs/msg/battery_log.hpp"
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
@@ -67,15 +68,9 @@ public:
   enum class State
   {
     BatteryFault = 0,
-    ShoreFault,
-    //PumaFault,
-    ShoreAndCharged,
-    ShoreAndCharging,
-    ShorePower,
     Charged,
     Charging,
     Stopped,
-    NeedsReset,
     LowBattery,
     Driving,
     Idle
@@ -95,10 +90,7 @@ private:
   void startUserTimeoutTimer();
 
   void cmdLightsCallback(const clearpath_platform_msgs::msg::Lights::SharedPtr msg);
-  void statusCallback(const clearpath_platform_msgs::msg::Status::SharedPtr msg);
-  void powerCallback(const clearpath_platform_msgs::msg::Power::SharedPtr msg);
-  void stopStatusCallback(const clearpath_platform_msgs::msg::StopStatus::SharedPtr msg);
-  void batteryStateCallback(const sensor_msgs::msg::BatteryState::SharedPtr msg);
+  void batteryStateCallback(const sysnergie_msgs::msg::BatteryLog::SharedPtr msg);
   void stopEngagedCallback(const std_msgs::msg::Bool::SharedPtr msg);
   void cmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr msg);
 
@@ -111,10 +103,7 @@ private:
 
   // Subscribers
   rclcpp::Subscription<clearpath_platform_msgs::msg::Lights>::SharedPtr cmd_lights_sub_;
-  rclcpp::Subscription<clearpath_platform_msgs::msg::Status>::SharedPtr status_sub_;
-  rclcpp::Subscription<clearpath_platform_msgs::msg::Power>::SharedPtr power_sub_;
-  rclcpp::Subscription<clearpath_platform_msgs::msg::StopStatus>::SharedPtr stop_status_sub_;
-  rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_state_sub_;
+  rclcpp::Subscription<sysnergie_msgs::msg::BatteryLog>::SharedPtr battery_state_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr stop_engaged_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
@@ -124,10 +113,7 @@ private:
 
   // Messages
   clearpath_platform_msgs::msg::Lights lights_msg_;
-  clearpath_platform_msgs::msg::Status status_msg_;
-  clearpath_platform_msgs::msg::Power power_msg_;
-  clearpath_platform_msgs::msg::StopStatus stop_status_msg_;
-  sensor_msgs::msg::BatteryState battery_state_msg_;
+  sysnergie_msgs::msg::BatteryLog battery_state_msg_;
   std_msgs::msg::Bool stop_engaged_msg_;
   geometry_msgs::msg::Twist cmd_vel_msg_;
 

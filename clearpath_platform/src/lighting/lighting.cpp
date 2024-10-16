@@ -48,7 +48,7 @@ Lighting::Lighting()
   user_commands_allowed_(false)
 {
   // Get platform model from platform parameter
-  this->declare_parameter("platform", "dd100");
+  this->declare_parameter("platform", "w200");
   std::string platform = this->get_parameter("platform").as_string();
 
   try
@@ -70,42 +70,19 @@ Lighting::Lighting()
       Sequence::fillLightingState(COLOR_YELLOW, platform_),
       Sequence::fillLightingState(COLOR_RED, platform_),
       MS_TO_STEPS(2000), 0.5)},
-
-    {State::ShoreFault, BlinkSequence(
-      Sequence::fillLightingState(COLOR_BLUE, platform_),
-      Sequence::fillLightingState(COLOR_RED, platform_),
-      MS_TO_STEPS(2000), 0.5)},
-
-    {State::ShoreAndCharging, PulseSequence(
-      Sequence::fillLightingState(COLOR_BLUE, platform_),
-      Sequence::fillLightingState(COLOR_YELLOW, platform_),
-      MS_TO_STEPS(12000))},
-    
-    {State::ShoreAndCharged, PulseSequence(
-      Sequence::fillLightingState(COLOR_BLUE, platform_),
-      Sequence::fillLightingState(COLOR_GREEN, platform_),
-      MS_TO_STEPS(12000))},
-    
-    {State::ShorePower, SolidSequence(
-      Sequence::fillLightingState(COLOR_BLUE, platform_))},
     
     {State::Charging, PulseSequence(
-      Sequence::fillLightingState(COLOR_GREEN, platform_),
-      Sequence::fillLightingState(COLOR_YELLOW, platform_),
-      MS_TO_STEPS(6000))},
+      Sequence::fillLightingState(COLOR_BLUE, platform_),
+      Sequence::fillLightingState(COLOR_BLACK, platform_),
+      MS_TO_STEPS(4000))},
     
     {State::Charged, SolidSequence(
-      Sequence::fillLightingState(COLOR_GREEN, platform_))},
+      Sequence::fillLightingState(COLOR_BLUE, platform_))},
     
     {State::Stopped, BlinkSequence(
       Sequence::fillLightingState(COLOR_RED, platform_),
       Sequence::fillLightingState(COLOR_BLACK, platform_),
       MS_TO_STEPS(1000), 0.5)},
-    
-    {State::NeedsReset, BlinkSequence(
-      Sequence::fillLightingState(COLOR_ORANGE, platform_),
-      Sequence::fillLightingState(COLOR_RED, platform_),
-      MS_TO_STEPS(2000), 0.5)},
     
     {State::LowBattery, PulseSequence(
       Sequence::fillLightingState(COLOR_ORANGE, platform_),
@@ -140,18 +117,12 @@ void Lighting::spinOnce()
   {
     case State::Idle:
     case State::Driving:
-    case State::ShorePower:
-    case State::ShoreAndCharging:
-    case State::ShoreAndCharged:
     case State::Charging:
     case State::Charged:
       user_commands_allowed_ = true;
       break;
     case State::LowBattery:
-    case State::NeedsReset:
     case State::BatteryFault:
-    case State::ShoreFault:
-   //case State::PumaFault:
     case State::Stopped:
       user_commands_allowed_ = false;
       break;
@@ -196,27 +167,9 @@ void Lighting::initializeSubscribers()
     rclcpp::SystemDefaultsQoS(),
     std::bind(&Lighting::cmdLightsCallback, this, std::placeholders::_1));
 
-  // MCU status
-  status_sub_ = this->create_subscription<clearpath_platform_msgs::msg::Status>(
-    "platform/mcu/status",
-    rclcpp::SensorDataQoS(),
-    std::bind(&Lighting::statusCallback, this, std::placeholders::_1));
-
-  // MCU power status
-  power_sub_ = this->create_subscription<clearpath_platform_msgs::msg::Power>(
-    "platform/mcu/status/power",
-    rclcpp::SensorDataQoS(),
-    std::bind(&Lighting::powerCallback, this, std::placeholders::_1));
-  
-  // MCU stop status
-  stop_status_sub_ = this->create_subscription<clearpath_platform_msgs::msg::StopStatus>(
-    "platform/mcu/status/stop",
-    rclcpp::SensorDataQoS(),
-    std::bind(&Lighting::stopStatusCallback, this, std::placeholders::_1));
-
   // Battery state
-  battery_state_sub_ = this->create_subscription<sensor_msgs::msg::BatteryState>(
-    "platform/bms/state",
+  battery_state_sub_ = this->create_subscription<sysnergie_msgs::msg::BatteryLog>(
+    "/battery_logs",
     rclcpp::SensorDataQoS(),
     std::bind(&Lighting::batteryStateCallback, this, std::placeholders::_1));
   
@@ -228,7 +181,7 @@ void Lighting::initializeSubscribers()
   
   // Command vel
   cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
-    "platform/cmd_vel_unstamped",
+    "platform/cmd_vel",
     rclcpp::SensorDataQoS(),
     std::bind(&Lighting::cmdVelCallback, this, std::placeholders::_1));
 }
@@ -293,33 +246,9 @@ void Lighting::cmdLightsCallback(const clearpath_platform_msgs::msg::Lights::Sha
 }
 
 /**
- * @brief MCU status callback
- */
-void Lighting::statusCallback(const clearpath_platform_msgs::msg::Status::SharedPtr msg)
-{
-  status_msg_ = *msg;
-}
-
-/**
- * @brief MCU power status callback
- */
-void Lighting::powerCallback(const clearpath_platform_msgs::msg::Power::SharedPtr msg)
-{
-  power_msg_ = *msg;
-}
-
-/**
- * @brief MCU stop status callback
- */
-void Lighting::stopStatusCallback(const clearpath_platform_msgs::msg::StopStatus::SharedPtr msg)
-{
-  stop_status_msg_ = *msg;
-}
-
-/**
  * @brief BMS state callback
  */
-void Lighting::batteryStateCallback(const sensor_msgs::msg::BatteryState::SharedPtr msg)
+void Lighting::batteryStateCallback(const sysnergie_msgs::msg::BatteryLog::SharedPtr msg)
 {
   battery_state_msg_ = *msg;
 }
@@ -357,65 +286,29 @@ void Lighting::setState(Lighting::State new_state)
 void Lighting::updateState()
 {
   state_ = State::Idle;
-  // Shore power connected
-  if (power_msg_.shore_power_connected == 1)
+
+  // Battery health is not good
+  if (battery_state_msg_.state == 4)
   {
-    // Shore power overvoltage detected on MCU
-    if (battery_state_msg_.power_supply_health == sensor_msgs::msg::BatteryState::POWER_SUPPLY_HEALTH_OVERVOLTAGE)
-    {
-      setState(State::ShoreFault);
-    }
-    else
-    {
-      setState(State::ShorePower);
-    }
+    setState(State::BatteryFault);
   }
-  else // No shore power
+  else if (battery_state_msg_.soc < 30) // Battery low
   {
-    // Battery health is not good
-    if (battery_state_msg_.power_supply_health != sensor_msgs::msg::BatteryState::POWER_SUPPLY_HEALTH_GOOD)
-    {
-      setState(State::BatteryFault);
-    }
-    else if (battery_state_msg_.percentage < 0.2) // Battery low
-    {
-      setState(State::LowBattery);
-    }
+    setState(State::LowBattery);
   }
 
   // Charger connected
-  if (battery_state_msg_.power_supply_status == sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING) // || wibotic_charging_msg_.data)
+  if (battery_state_msg_.state == 3)
   {
     // Fully charged
-    if (battery_state_msg_.percentage == 1.0)
+    if (battery_state_msg_.soc >= 80)
     {
-      // Shore power connected
-      if (power_msg_.shore_power_connected == 1)
-      {
-        setState(State::ShoreAndCharged);
-      }
-      else
-      {
-        setState(State::Charged);
-      }
+      setState(State::Charged);
     }
     else
     {
-      // Shore power connected
-      if (power_msg_.shore_power_connected == 1)
-      {
-        setState(State::ShoreAndCharging);
-      }
-      else
-      {
-        setState(State::Charging);
-      }
+      setState(State::Charging);
     }
-  }
-
-  if (stop_status_msg_.needs_reset)
-  {
-    setState(State::NeedsReset);
   }
   
   if (stop_engaged_msg_.data) // E-Stop
